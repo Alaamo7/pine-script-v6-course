@@ -1,0 +1,5 @@
+//@version=6
+indicator("Custom Signal Example", overlay=true)
+
+signal = close > open and close > close[1]
+plotshape(signal, title="Bullish Signal", style=shape.triangleup, location=location.belowbar, color=color.green)
