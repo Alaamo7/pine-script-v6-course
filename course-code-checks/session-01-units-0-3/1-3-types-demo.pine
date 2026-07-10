@@ -1,0 +1,10 @@
+//@version=6
+indicator("Types Demo")
+
+isBullish = close > open
+length = 14
+multiplier = 1.5
+message = "Bullish Candle"
+signalColor = color.green
+
+plot(isBullish ? close : na, color=signalColor)
