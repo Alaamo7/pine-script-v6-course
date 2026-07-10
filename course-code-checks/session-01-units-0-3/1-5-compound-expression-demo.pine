@@ -1,0 +1,9 @@
+//@version=6
+indicator("Compound Expression Demo", overlay=true)
+
+isBullish = close > open
+hasHigherClose = close > close[1]
+hasHigherVolume = volume > volume[1]
+
+signal = isBullish and hasHigherClose and hasHigherVolume
+plotshape(signal, title="Signal", style=shape.triangleup, location=location.belowbar, color=color.green)
