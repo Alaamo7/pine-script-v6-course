@@ -1,0 +1,4 @@
+//@version=6
+indicator(title="Basic Structure", shorttitle="BS", overlay=true)
+price = close
+plot(price)
