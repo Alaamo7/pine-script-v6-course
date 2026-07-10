@@ -1,0 +1,4 @@
+//@version=6
+indicator("OHLC Demo", overlay=false)
+plot(close)
+plot(volume)
