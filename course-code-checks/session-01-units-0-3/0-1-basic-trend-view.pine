@@ -1,0 +1,7 @@
+//@version=6
+indicator("Basic Trend View", overlay=true)
+
+isBullish = close > open
+isBearish = close < open
+
+barcolor(isBullish ? color.green : isBearish ? color.red : color.gray)
