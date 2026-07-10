@@ -1,0 +1,3 @@
+//@version=6
+indicator("My First Pine Script", overlay=true)
+plot(close)
