@@ -1,0 +1,4 @@
+//@version=6
+indicator("Series Demo")
+plot(close)
+plot(close[1])
