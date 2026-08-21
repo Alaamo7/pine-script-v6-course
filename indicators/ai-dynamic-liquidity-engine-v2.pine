@@ -1,0 +1,88 @@
+//@version=6
+indicator("AI Dynamic Liquidity Engine - Core v2.1", overlay=true, max_boxes_count=40)
+
+// === INPUTS ===
+swingWindow = input.int(10, "Swing Window Size", minval=3, maxval=50)
+testSensitivity = input.int(3, "Required Zone Tests", minval=1, maxval=10)
+boxWidth = input.int(20, "Initial Zone Width (Bars)", minval=5, maxval=200)
+maxZones = input.int(20, "Maximum Stored Zones Per Side", minval=5, maxval=20)
+confirmOnClose = input.bool(true, "Confirm New Swings On Bar Close")
+
+// === SWING DETECTION ===
+highestInWindow = ta.highest(high, swingWindow)
+lowestInWindow = ta.lowest(low, swingWindow)
+signalReady = not confirmOnClose or barstate.isconfirmed
+isSwingHigh = signalReady and high == highestInWindow
+isSwingLow = signalReady and low == lowestInWindow
+
+// === ZONE STATE ===
+var float[] highZones = array.new_float()
+var float[] lowZones = array.new_float()
+var int[] highTests = array.new_int()
+var int[] lowTests = array.new_int()
+var box[] highBoxes = array.new_box()
+var box[] lowBoxes = array.new_box()
+
+if isSwingHigh
+    array.push(highZones, high)
+    array.push(highTests, 0)
+    array.push(highBoxes, na)
+if isSwingLow
+    array.push(lowZones, low)
+    array.push(lowTests, 0)
+    array.push(lowBoxes, na)
+
+// === ZONE VALIDATION, DRAWING, AND REUSE ===
+if array.size(highZones) > 0
+    for i = 0 to array.size(highZones) - 1
+        float level = array.get(highZones, i)
+        int tests = array.get(highTests, i)
+        if level != 0 and math.abs(high - level) / level < 0.005 and barstate.isconfirmed
+            tests += 1
+            array.set(highTests, i, tests)
+        box zoneBox = array.get(highBoxes, i)
+        if tests >= testSensitivity
+            if na(zoneBox)
+                zoneBox := box.new(left=bar_index - boxWidth, right=bar_index, top=level, bottom=level * 0.997, bgcolor=color.new(color.red, 80), border_color=color.red)
+                array.set(highBoxes, i, zoneBox)
+            else
+                box.set_right(zoneBox, bar_index)
+
+if array.size(lowZones) > 0
+    for i = 0 to array.size(lowZones) - 1
+        float level = array.get(lowZones, i)
+        int tests = array.get(lowTests, i)
+        if level != 0 and math.abs(low - level) / level < 0.005 and barstate.isconfirmed
+            tests += 1
+            array.set(lowTests, i, tests)
+        box zoneBox = array.get(lowBoxes, i)
+        if tests >= testSensitivity
+            if na(zoneBox)
+                zoneBox := box.new(left=bar_index - boxWidth, right=bar_index, top=level * 1.003, bottom=level, bgcolor=color.new(color.lime, 80), border_color=color.lime)
+                array.set(lowBoxes, i, zoneBox)
+            else
+                box.set_right(zoneBox, bar_index)
+
+// === BOUNDED CLEANUP ===
+while array.size(highZones) > maxZones
+    box oldBox = array.shift(highBoxes)
+    if not na(oldBox)
+        box.delete(oldBox)
+    array.shift(highZones)
+    array.shift(highTests)
+
+while array.size(lowZones) > maxZones
+    box oldBox = array.shift(lowBoxes)
+    if not na(oldBox)
+        box.delete(oldBox)
+    array.shift(lowZones)
+    array.shift(lowTests)
+
+// === DASHBOARD ===
+var table dash = table.new(position.bottom_right, 2, 2, border_width=1)
+if barstate.islast
+    table.cell(dash, 0, 0, "Dynamic Liquidity")
+    table.cell(dash, 1, 0, confirmOnClose ? "Close confirmed" : "Intrabar")
+    table.cell(dash, 0, 1, "Stored zones")
+    table.cell(dash, 1, 1, str.tostring(array.size(highZones) + array.size(lowZones)))
+
