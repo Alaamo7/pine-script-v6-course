@@ -1,32 +1,48 @@
 //@version=6
-strategy("Ultimate Scalping PRO V2.6 Legend Pro", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+strategy(
+     "Ultimate Scalping PRO V2.7",
+     overlay=true,
+     initial_capital=100000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=10,
+     pyramiding=0,
+     commission_type=strategy.commission.percent,
+     commission_value=0.10,
+     slippage=2,
+     process_orders_on_close=true)
+
+// Backtest assumptions: 0.10% commission per order, two ticks of slippage,
+// and orders processed on the confirmed signal bar close.
+startDate = input.time(timestamp("01 Jan 2024 00:00 +0000"), "بداية فترة الاختبار")
+endDate = input.time(timestamp("31 Dec 2030 23:59 +0000"), "نهاية فترة الاختبار")
+inTestWindow = time >= startDate and time <= endDate
 
 // المتوسطات
-emaShortLength = input.int(9, title="EMA القصير")
-emaLongLength  = input.int(21, title="EMA الطويل")
+emaShortLength = input.int(9, title="EMA القصير", minval=1)
+emaLongLength  = input.int(21, title="EMA الطويل", minval=2)
 emaShort = ta.ema(close, emaShortLength)
 emaLong  = ta.ema(close, emaLongLength)
 
 // RSI
-rsiLength = input.int(14, title="طول RSI")
-rsiOverbought = input.int(70, title="تشبع شراء RSI")
-rsiOversold = input.int(30, title="تشبع بيع RSI")
+rsiLength = input.int(14, title="طول RSI", minval=1)
+rsiOverbought = input.int(70, title="تشبع شراء RSI", minval=51, maxval=100)
+rsiOversold = input.int(30, title="تشبع بيع RSI", minval=0, maxval=49)
 rsi = ta.rsi(close, rsiLength)
 
 // MACD
 [macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
 
 // ADX
-adxLength = input.int(14, title="طول ADX")
-adxSmoothing = input.int(14, title="Smoothing ADX")
-adxThreshold = input.int(20, title="فلتر قوة ADX")
+adxLength = input.int(14, title="طول ADX", minval=1)
+adxSmoothing = input.int(14, title="Smoothing ADX", minval=1)
+adxThreshold = input.int(20, title="فلتر قوة ADX", minval=0)
 [plusDI, minusDI, adxVal] = ta.dmi(adxLength, adxSmoothing)
 
 // Stochastic
 stochK = ta.stoch(close, high, low, 14)
 stochD = ta.sma(stochK, 3)
-stochOverbought = input.int(80, title="تشبع شراء Stochastic")
-stochOversold = input.int(20, title="تشبع بيع Stochastic")
+stochOverbought = input.int(80, title="تشبع شراء Stochastic", minval=51, maxval=100)
+stochOversold = input.int(20, title="تشبع بيع Stochastic", minval=0, maxval=49)
 
 // دعم ومقاومة
 pivotHigh = ta.pivothigh(high, 5, 5)
@@ -41,8 +57,8 @@ plot(resistance, "المقاومة", color=color.red, style=plot.style_stepline)
 plot(support, "الدعم", color=color.green, style=plot.style_stepline)
 
 // ATR
-atrLength = input.int(14, title="طول ATR")
-atrMultiplier = input.float(1.5, title="مضاعف ATR")
+atrLength = input.int(14, title="طول ATR", minval=1)
+atrMultiplier = input.float(1.5, title="مضاعف ATR", minval=0.1, step=0.1)
 atr = ta.atr(atrLength)
 
 // شروط الدخول والخروج
@@ -50,24 +66,36 @@ adxFilter = adxVal > adxThreshold
 stochFilterLong  = stochK < stochOverbought
 stochFilterShort = stochK > stochOversold
 
-buyCondition = ta.crossover(emaShort, emaLong) and (rsi < rsiOverbought) and (macdLine > signalLine) and adxFilter and stochFilterLong
-sellCondition = ta.crossunder(emaShort, emaLong) and (rsi > rsiOversold) and (macdLine < signalLine) and adxFilter and stochFilterShort
+crossedUp = ta.crossover(emaShort, emaLong)
+crossedDown = ta.crossunder(emaShort, emaLong)
+buyCondition = inTestWindow and barstate.isconfirmed and crossedUp and rsi < rsiOverbought and macdLine > signalLine and adxFilter and stochFilterLong
+sellCondition = inTestWindow and barstate.isconfirmed and crossedDown and rsi > rsiOversold and macdLine < signalLine and adxFilter and stochFilterShort
+
+var float entryAtr = na
 
 if (buyCondition)
+    entryAtr := atr
     strategy.entry("Buy", strategy.long)
 if (sellCondition)
+    entryAtr := atr
     strategy.entry("Sell", strategy.short)
 
-// وقف الخسارة وجني الأرباح
-longStop  = close - (atr * atrMultiplier)
-longTarget = close + (atr * atrMultiplier)
-shortStop = close + (atr * atrMultiplier)
-shortTarget = close - (atr * atrMultiplier)
+// وقف الخسارة وجني الأرباح من متوسط سعر الدخول وبـ ATR ثابت وقت الإشارة
+longStop = strategy.position_avg_price - entryAtr * atrMultiplier
+longTarget = strategy.position_avg_price + entryAtr * atrMultiplier
+shortStop = strategy.position_avg_price + entryAtr * atrMultiplier
+shortTarget = strategy.position_avg_price - entryAtr * atrMultiplier
 
-if (buyCondition)
+if strategy.position_size > 0 and not na(entryAtr)
     strategy.exit("TP/SL Buy", "Buy", limit=longTarget, stop=longStop)
-if (sellCondition)
+if strategy.position_size < 0 and not na(entryAtr)
     strategy.exit("TP/SL Sell", "Sell", limit=shortTarget, stop=shortStop)
+
+if strategy.position_size == 0 and not buyCondition and not sellCondition
+    entryAtr := na
+
+if time > endDate and strategy.position_size != 0
+    strategy.close_all(comment="End of test window")
 
 // إشارات مرئية
 plot(emaShort, color=color.blue, linewidth=2, title="EMA 9")
@@ -98,5 +126,6 @@ if barstate.isfirst
     table.cell(legendFilters, 1, 6, "",                  text_color=color.white, bgcolor=color.black)
 
 // التنبيهات
-alertcondition(buyCondition, title="Buy Alert", message="📈 إشارة شراء Ultimate Scalping PRO V2.6")
-alertcondition(sellCondition, title="Sell Alert", message="📉 إشارة بيع Ultimate Scalping PRO V2.6")
+alertcondition(buyCondition, title="Buy Alert", message="📈 إشارة شراء Ultimate Scalping PRO V2.7 على {{ticker}} {{interval}}")
+alertcondition(sellCondition, title="Sell Alert", message="📉 إشارة بيع Ultimate Scalping PRO V2.7 على {{ticker}} {{interval}}")
+
