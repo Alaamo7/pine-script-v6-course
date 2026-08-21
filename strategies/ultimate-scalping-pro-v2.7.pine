@@ -13,8 +13,8 @@ strategy(
 
 // Backtest assumptions: 0.10% commission per order, two ticks of slippage,
 // and orders processed on the confirmed signal bar close.
-startDate = input.time(timestamp(2024, 1, 1, 0, 0), "بداية فترة الاختبار")
-endDate = input.time(timestamp(2030, 12, 31, 23, 59), "نهاية فترة الاختبار")
+startDate = input.time(timestamp("01 Jan 2024 00:00 +0000"), "بداية فترة الاختبار")
+endDate = input.time(timestamp("31 Dec 2030 23:59 +0000"), "نهاية فترة الاختبار")
 inTestWindow = time >= startDate and time <= endDate
 
 // المتوسطات
